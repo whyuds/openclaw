@@ -51,7 +51,7 @@ describe("web media loading", () => {
     const file = await writeTempFile(buffer, ".jpg");
 
     const cap = Math.floor(buffer.length * 0.8);
-    const result = await loadWebMedia(file, cap);
+    const result = await loadWebMedia(file, cap, { localRoots: [path.dirname(file)] });
 
     expect(result.kind).toBe("image");
     expect(result.buffer.length).toBeLessThanOrEqual(cap);
@@ -66,10 +66,30 @@ describe("web media loading", () => {
       .toBuffer();
     const wrongExt = await writeTempFile(pngBuffer, ".bin");
 
-    const result = await loadWebMedia(wrongExt, 1024 * 1024);
+    const result = await loadWebMedia(wrongExt, 1024 * 1024, {
+      localRoots: [path.dirname(wrongExt)],
+    });
 
     expect(result.kind).toBe("image");
     expect(result.contentType).toBe("image/jpeg");
+  });
+
+  it("rejects local files outside allowed roots", async () => {
+    const allowedDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-media-root-"));
+    const allowedFile = path.join(allowedDir, "ok.txt");
+    await fs.writeFile(allowedFile, Buffer.from("ok"));
+    const blockedFile = await writeTempFile(Buffer.from("nope"), ".txt");
+
+    const okResult = await loadWebMedia(allowedFile, 1024 * 1024, {
+      localRoots: [allowedDir],
+    });
+    expect(okResult.buffer.length).toBeGreaterThan(0);
+
+    await expect(
+      loadWebMedia(blockedFile, 1024 * 1024, { localRoots: [allowedDir] }),
+    ).rejects.toThrow(/outside allowed roots/i);
+
+    await fs.rm(allowedDir, { recursive: true, force: true });
   });
 
   it("adds extension to URL fileName when missing", async () => {
@@ -169,7 +189,7 @@ describe("web media loading", () => {
 
     const file = await writeTempFile(gifBuffer, ".gif");
 
-    const result = await loadWebMedia(file, 1024 * 1024);
+    const result = await loadWebMedia(file, 1024 * 1024, { localRoots: [path.dirname(file)] });
 
     expect(result.kind).toBe("image");
     expect(result.contentType).toBe("image/gif");
@@ -215,7 +235,7 @@ describe("web media loading", () => {
 
     const file = await writeTempFile(buffer, ".png");
 
-    const result = await loadWebMedia(file, 1024 * 1024);
+    const result = await loadWebMedia(file, 1024 * 1024, { localRoots: [path.dirname(file)] });
 
     expect(result.kind).toBe("image");
     expect(result.contentType).toBe("image/png");
@@ -255,7 +275,7 @@ describe("web media loading", () => {
 
     const file = await writeTempFile(pngBuffer, ".png");
 
-    const result = await loadWebMedia(file, cap);
+    const result = await loadWebMedia(file, cap, { localRoots: [path.dirname(file)] });
 
     expect(result.kind).toBe("image");
     expect(result.contentType).toBe("image/jpeg");

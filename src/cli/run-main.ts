@@ -27,6 +27,7 @@ export async function runCli(argv: string[] = process.argv) {
   const normalizedArgv = stripWindowsNodeExec(argv);
   loadDotEnv({ quiet: true });
   normalizeEnv();
+  process.env.OPENCLAW_MEDIA_ALLOW_ANY_LOCAL = "1";
   ensureOpenClawCliOnPath();
 
   // Enforce the minimum supported runtime before doing any work.

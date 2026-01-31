@@ -74,6 +74,7 @@ Status: stable.
 - **BREAKING:** Gateway auth mode "none" is removed; gateway now requires token/password (Tailscale Serve identity still allowed).
 
 ### Fixes
+- Security: restrict local media reads to workspace and `~/.openclaw/media`; store node captures + TTS output in the media directory. (#4880) Thanks @evanotero.
 - Infra: resolve Control UI assets for npm global installs. (#4909) Thanks @YuriNachos.
 - Gateway: prevent blank token prompts from storing "undefined". (#4873) Thanks @Hisleren.
 - Telegram: use undici fetch for per-account proxy dispatcher. (#4456) Thanks @spiceoogway.

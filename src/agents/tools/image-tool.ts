@@ -397,7 +397,9 @@ export function createImageTool(options?: {
 
       const media = isDataUrl
         ? decodeDataUrl(resolvedImage)
-        : await loadWebMedia(resolvedPath ?? resolvedImage, maxBytes);
+        : await loadWebMedia(resolvedPath ?? resolvedImage, maxBytes, {
+            localRoots: sandboxRoot ? [sandboxRoot] : undefined,
+          });
       if (media.kind !== "image") {
         throw new Error(`Unsupported media type: ${media.kind}`);
       }

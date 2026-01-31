@@ -1,24 +1,20 @@
 import crypto from "node:crypto";
+import path from "node:path";
 
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
 
 import {
   type CameraFacing,
-  cameraTempPath,
   parseCameraClipPayload,
   parseCameraSnapPayload,
-  writeBase64ToFile,
 } from "../../cli/nodes-camera.js";
 import { parseEnvPairs, parseTimeoutMs } from "../../cli/nodes-run.js";
-import {
-  parseScreenRecordPayload,
-  screenRecordTempPath,
-  writeScreenRecordToFile,
-} from "../../cli/nodes-screen.js";
+import { parseScreenRecordPayload } from "../../cli/nodes-screen.js";
 import { parseDurationMs } from "../../cli/parse-duration.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { imageMimeFromFormat } from "../../media/mime.js";
+import { saveMediaBuffer } from "../../media/store.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
 import { optionalStringEnum, stringEnum } from "../schema/typebox.js";
 import { sanitizeToolResultImages } from "../tool-images.js";
@@ -223,12 +219,17 @@ export function createNodesTool(options?: {
               }
 
               const isJpeg = normalizedFormat === "jpg" || normalizedFormat === "jpeg";
-              const filePath = cameraTempPath({
-                kind: "snap",
-                facing,
-                ext: isJpeg ? "jpg" : "png",
-              });
-              await writeBase64ToFile(filePath, payload.base64);
+              const buffer = Buffer.from(payload.base64, "base64");
+              const mimeType =
+                imageMimeFromFormat(payload.format) ?? (isJpeg ? "image/jpeg" : "image/png");
+              const saved = await saveMediaBuffer(
+                buffer,
+                mimeType,
+                "nodes",
+                Math.max(buffer.length, 1),
+                `camera-${facing}.${isJpeg ? "jpg" : "png"}`,
+              );
+              const filePath = saved.path;
               content.push({ type: "text", text: `MEDIA:${filePath}` });
               content.push({
                 type: "image",
@@ -293,12 +294,17 @@ export function createNodesTool(options?: {
               idempotencyKey: crypto.randomUUID(),
             })) as { payload?: unknown };
             const payload = parseCameraClipPayload(raw?.payload);
-            const filePath = cameraTempPath({
-              kind: "clip",
-              facing,
-              ext: payload.format,
-            });
-            await writeBase64ToFile(filePath, payload.base64);
+            const buffer = Buffer.from(payload.base64, "base64");
+            const format = payload.format.toLowerCase();
+            const contentType = format === "mp4" ? "video/mp4" : undefined;
+            const saved = await saveMediaBuffer(
+              buffer,
+              contentType,
+              "nodes",
+              Math.max(buffer.length, 1),
+              `camera-clip-${facing}.${format || "mp4"}`,
+            );
+            const filePath = saved.path;
             return {
               content: [{ type: "text", text: `FILE:${filePath}` }],
               details: {
@@ -339,15 +345,26 @@ export function createNodesTool(options?: {
               idempotencyKey: crypto.randomUUID(),
             })) as { payload?: unknown };
             const payload = parseScreenRecordPayload(raw?.payload);
-            const filePath =
+            const buffer = Buffer.from(payload.base64, "base64");
+            const format = payload.format.toLowerCase() || "mp4";
+            const contentType = format === "mp4" ? "video/mp4" : undefined;
+            const outPath =
               typeof params.outPath === "string" && params.outPath.trim()
                 ? params.outPath.trim()
-                : screenRecordTempPath({ ext: payload.format || "mp4" });
-            const written = await writeScreenRecordToFile(filePath, payload.base64);
+                : "";
+            const fileName = outPath ? path.basename(outPath) : `screen-record.${format}`;
+            const saved = await saveMediaBuffer(
+              buffer,
+              contentType,
+              "nodes",
+              Math.max(buffer.length, 1),
+              fileName,
+            );
+            const filePath = saved.path;
             return {
-              content: [{ type: "text", text: `FILE:${written.path}` }],
+              content: [{ type: "text", text: `FILE:${filePath}` }],
               details: {
-                path: written.path,
+                path: filePath,
                 durationMs: payload.durationMs,
                 fps: payload.fps,
                 screenIndex: payload.screenIndex,

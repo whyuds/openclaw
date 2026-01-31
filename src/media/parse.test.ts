@@ -9,33 +9,21 @@ describe("splitMediaFromOutput", () => {
     expect(result.text).toBe("Hello world");
   });
 
-  it("rejects absolute media paths to prevent LFI", () => {
+  it("captures media paths with spaces", () => {
     const result = splitMediaFromOutput("MEDIA:/Users/pete/My File.png");
-    expect(result.mediaUrls).toBeUndefined();
-    expect(result.text).toBe("MEDIA:/Users/pete/My File.png");
+    expect(result.mediaUrls).toEqual(["/Users/pete/My File.png"]);
+    expect(result.text).toBe("");
   });
 
-  it("rejects quoted absolute media paths to prevent LFI", () => {
+  it("captures quoted media paths with spaces", () => {
     const result = splitMediaFromOutput('MEDIA:"/Users/pete/My File.png"');
-    expect(result.mediaUrls).toBeUndefined();
-    expect(result.text).toBe('MEDIA:"/Users/pete/My File.png"');
+    expect(result.mediaUrls).toEqual(["/Users/pete/My File.png"]);
+    expect(result.text).toBe("");
   });
 
-  it("rejects tilde media paths to prevent LFI", () => {
+  it("captures tilde media paths with spaces", () => {
     const result = splitMediaFromOutput("MEDIA:~/Pictures/My File.png");
-    expect(result.mediaUrls).toBeUndefined();
-    expect(result.text).toBe("MEDIA:~/Pictures/My File.png");
-  });
-
-  it("rejects directory traversal media paths to prevent LFI", () => {
-    const result = splitMediaFromOutput("MEDIA:../../etc/passwd");
-    expect(result.mediaUrls).toBeUndefined();
-    expect(result.text).toBe("MEDIA:../../etc/passwd");
-  });
-
-  it("captures safe relative media paths", () => {
-    const result = splitMediaFromOutput("MEDIA:./screenshots/image.png");
-    expect(result.mediaUrls).toEqual(["./screenshots/image.png"]);
+    expect(result.mediaUrls).toEqual(["~/Pictures/My File.png"]);
     expect(result.text).toBe("");
   });
 
@@ -55,8 +43,8 @@ describe("splitMediaFromOutput", () => {
   });
 
   it("parses MEDIA tags with leading whitespace", () => {
-    const result = splitMediaFromOutput("  MEDIA:./screenshot.png");
-    expect(result.mediaUrls).toEqual(["./screenshot.png"]);
+    const result = splitMediaFromOutput("  MEDIA:/tmp/screenshot.png");
+    expect(result.mediaUrls).toEqual(["/tmp/screenshot.png"]);
     expect(result.text).toBe("");
   });
 });

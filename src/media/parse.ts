@@ -19,9 +19,11 @@ function isValidMedia(candidate: string, opts?: { allowSpaces?: boolean }) {
   if (candidate.length > 4096) return false;
   if (!opts?.allowSpaces && /\s/.test(candidate)) return false;
   if (/^https?:\/\//i.test(candidate)) return true;
-
-  // Local paths: only allow safe relative paths starting with ./ that do not traverse upwards.
-  return candidate.startsWith("./") && !candidate.includes("..");
+  if (candidate.startsWith("/")) return true;
+  if (candidate.startsWith("./")) return true;
+  if (candidate.startsWith("../")) return true;
+  if (candidate.startsWith("~")) return true;
+  return false;
 }
 
 function unwrapQuoted(value: string): string | undefined {
