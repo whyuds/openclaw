@@ -76,22 +76,26 @@ describe("acquireSessionWriteLock", () => {
     const signals = ["SIGINT", "SIGTERM", "SIGQUIT", "SIGABRT"] as const;
     for (const signal of signals) {
       const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-lock-cleanup-"));
+      const keepAlive = () => {};
+      let registered = false;
       try {
         const sessionFile = path.join(root, "sessions.json");
         const lockPath = `${sessionFile}.lock`;
         await acquireSessionWriteLock({ sessionFile, timeoutMs: 500 });
-        const keepAlive = () => {};
-        if (signal === "SIGINT") {
+        try {
           process.on(signal, keepAlive);
+          registered = true;
+        } catch {
+          registered = false;
         }
 
         __testing.handleTerminationSignal(signal);
 
         await expect(fs.stat(lockPath)).rejects.toThrow();
-        if (signal === "SIGINT") {
+      } finally {
+        if (registered) {
           process.off(signal, keepAlive);
         }
-      } finally {
         await fs.rm(root, { recursive: true, force: true });
       }
     }

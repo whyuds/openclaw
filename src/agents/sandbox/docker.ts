@@ -97,6 +97,58 @@ function normalizeDockerLimit(value?: string | number) {
   return trimmed ? trimmed : undefined;
 }
 
+function shouldNormalizeMountsForWslDocker(): boolean {
+  if (process.platform !== "win32") {
+    return false;
+  }
+  const host = process.env.DOCKER_HOST?.trim();
+  if (!host) {
+    return false;
+  }
+  const lower = host.toLowerCase();
+  return lower.startsWith("tcp://") || lower.startsWith("ssh://");
+}
+
+function normalizeWindowsMountPath(value: string): string {
+  const match = value.match(/^([a-zA-Z]):[\\/](.*)$/);
+  if (!match) {
+    return value;
+  }
+  const drive = match[1]?.toLowerCase();
+  const rest = (match[2] ?? "").replace(/\\/g, "/").replace(/^\/+/, "");
+  return rest ? `/mnt/${drive}/${rest}` : `/mnt/${drive}`;
+}
+
+export function normalizeDockerMountPath(value: string): string {
+  if (!shouldNormalizeMountsForWslDocker()) {
+    return value;
+  }
+  if (value.startsWith("/")) {
+    return value;
+  }
+  return normalizeWindowsMountPath(value);
+}
+
+function normalizeDockerBind(bind: string): string {
+  if (!shouldNormalizeMountsForWslDocker()) {
+    return bind;
+  }
+  if (!/^[a-zA-Z]:[\\/]/.test(bind)) {
+    return bind;
+  }
+  const delimiterIndex = bind.indexOf(":", 2);
+  if (delimiterIndex === -1) {
+    return bind;
+  }
+  const hostPart = bind.slice(0, delimiterIndex);
+  const rest = bind.slice(delimiterIndex);
+  const normalizedHost = normalizeWindowsMountPath(hostPart);
+  if (normalizedHost === hostPart) {
+    return bind;
+  }
+  return `${normalizedHost}${rest}`;
+}
+
 function formatUlimitValue(
   name: string,
   value: string | number | { soft?: number; hard?: number },
@@ -199,7 +251,7 @@ export function buildSandboxCreateArgs(params: {
   }
   if (params.cfg.binds?.length) {
     for (const bind of params.cfg.binds) {
-      args.push("-v", bind);
+      args.push("-v", normalizeDockerBind(bind));
     }
   }
   return args;
@@ -224,14 +276,16 @@ async function createSandboxContainer(params: {
     configHash: params.configHash,
   });
   args.push("--workdir", cfg.workdir);
-  const mainMountSuffix =
-    params.workspaceAccess === "ro" && workspaceDir === params.agentWorkspaceDir ? ":ro" : "";
-  args.push("-v", `${workspaceDir}:${cfg.workdir}${mainMountSuffix}`);
-  if (params.workspaceAccess !== "none" && workspaceDir !== params.agentWorkspaceDir) {
+  const workspaceMount = normalizeDockerMountPath(workspaceDir);
+  const agentWorkspaceMount = normalizeDockerMountPath(params.agentWorkspaceDir);
+  const sameWorkspace = workspaceMount === agentWorkspaceMount;
+  const mainMountSuffix = params.workspaceAccess === "ro" && sameWorkspace ? ":ro" : "";
+  args.push("-v", `${workspaceMount}:${cfg.workdir}${mainMountSuffix}`);
+  if (params.workspaceAccess !== "none" && !sameWorkspace) {
     const agentMountSuffix = params.workspaceAccess === "ro" ? ":ro" : "";
     args.push(
       "-v",
-      `${params.agentWorkspaceDir}:${SANDBOX_AGENT_WORKSPACE_MOUNT}${agentMountSuffix}`,
+      `${agentWorkspaceMount}:${SANDBOX_AGENT_WORKSPACE_MOUNT}${agentMountSuffix}`,
     );
   }
   args.push(cfg.image, "sleep", "infinity");
@@ -283,11 +337,13 @@ export async function ensureSandboxContainer(params: {
   const slug = params.cfg.scope === "shared" ? "shared" : slugifySessionKey(scopeKey);
   const name = `${params.cfg.docker.containerPrefix}${slug}`;
   const containerName = name.slice(0, 63);
+  const workspaceMount = normalizeDockerMountPath(params.workspaceDir);
+  const agentWorkspaceMount = normalizeDockerMountPath(params.agentWorkspaceDir);
   const expectedHash = computeSandboxConfigHash({
     docker: params.cfg.docker,
     workspaceAccess: params.cfg.workspaceAccess,
-    workspaceDir: params.workspaceDir,
-    agentWorkspaceDir: params.agentWorkspaceDir,
+    workspaceDir: workspaceMount,
+    agentWorkspaceDir: agentWorkspaceMount,
   });
   const now = Date.now();
   const state = await dockerContainerState(containerName);
@@ -330,9 +386,9 @@ export async function ensureSandboxContainer(params: {
     await createSandboxContainer({
       name: containerName,
       cfg: params.cfg.docker,
-      workspaceDir: params.workspaceDir,
+      workspaceDir: workspaceMount,
       workspaceAccess: params.cfg.workspaceAccess,
-      agentWorkspaceDir: params.agentWorkspaceDir,
+      agentWorkspaceDir: agentWorkspaceMount,
       scopeKey,
       configHash: expectedHash,
     });

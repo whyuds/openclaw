@@ -12,6 +12,7 @@ import {
   buildSandboxCreateArgs,
   dockerContainerState,
   execDocker,
+  normalizeDockerMountPath,
   readDockerPort,
 } from "./docker.js";
 import { updateBrowserRegistry } from "./registry.js";
@@ -110,16 +111,16 @@ export async function ensureSandboxBrowser(params: {
       scopeKey: params.scopeKey,
       labels: { "openclaw.sandboxBrowser": "1" },
     });
-    const mainMountSuffix =
-      params.cfg.workspaceAccess === "ro" && params.workspaceDir === params.agentWorkspaceDir
-        ? ":ro"
-        : "";
-    args.push("-v", `${params.workspaceDir}:${params.cfg.docker.workdir}${mainMountSuffix}`);
-    if (params.cfg.workspaceAccess !== "none" && params.workspaceDir !== params.agentWorkspaceDir) {
+    const workspaceMount = normalizeDockerMountPath(params.workspaceDir);
+    const agentWorkspaceMount = normalizeDockerMountPath(params.agentWorkspaceDir);
+    const sameWorkspace = workspaceMount === agentWorkspaceMount;
+    const mainMountSuffix = params.cfg.workspaceAccess === "ro" && sameWorkspace ? ":ro" : "";
+    args.push("-v", `${workspaceMount}:${params.cfg.docker.workdir}${mainMountSuffix}`);
+    if (params.cfg.workspaceAccess !== "none" && !sameWorkspace) {
       const agentMountSuffix = params.cfg.workspaceAccess === "ro" ? ":ro" : "";
       args.push(
         "-v",
-        `${params.agentWorkspaceDir}:${SANDBOX_AGENT_WORKSPACE_MOUNT}${agentMountSuffix}`,
+        `${agentWorkspaceMount}:${SANDBOX_AGENT_WORKSPACE_MOUNT}${agentMountSuffix}`,
       );
     }
     args.push("-p", `127.0.0.1::${params.cfg.browser.cdpPort}`);

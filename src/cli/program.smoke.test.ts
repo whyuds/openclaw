@@ -50,6 +50,7 @@ vi.mock("../gateway/call.js", () => ({
   }),
 }));
 vi.mock("./deps.js", () => ({ createDefaultDeps: () => ({}) }));
+vi.mock("./plugin-registry.js", () => ({ ensurePluginRegistryLoaded: () => {} }));
 
 const { buildProgram } = await import("./program.js");
 
