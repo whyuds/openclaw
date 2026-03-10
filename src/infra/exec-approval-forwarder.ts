@@ -155,6 +155,33 @@ function shouldSkipDiscordForwarding(
   return Boolean(execApprovals?.enabled && (execApprovals.approvers?.length ?? 0) > 0);
 }
 
+// Feishu has component-based exec approvals; skip text fallback only when the
+// Feishu-specific handler is enabled for the same target account.
+function shouldSkipFeishuForwarding(
+  target: ExecApprovalForwardTarget,
+  cfg: OpenClawConfig,
+): boolean {
+  const channel = normalizeMessageChannel(target.channel) ?? target.channel;
+  if (channel !== "feishu") {
+    return false;
+  }
+  const feishu = cfg.channels?.feishu as
+    | {
+        execApprovals?: { enabled?: boolean; approvers?: Array<string | number> };
+        accounts?: Record<
+          string,
+          { execApprovals?: { enabled?: boolean; approvers?: Array<string | number> } }
+        >;
+      }
+    | undefined;
+  if (!feishu) {
+    return false;
+  }
+  const account = resolveChannelAccountConfig(feishu.accounts, target.accountId);
+  const execApprovals = account?.execApprovals ?? feishu.execApprovals;
+  return Boolean(execApprovals?.enabled && (execApprovals.approvers?.length ?? 0) > 0);
+}
+
 function shouldSkipTelegramForwarding(params: {
   target: ExecApprovalForwardTarget;
   cfg: OpenClawConfig;
@@ -196,6 +223,7 @@ function shouldSkipTelegramForwarding(params: {
   const execApprovals = account?.execApprovals ?? telegramConfig.execApprovals;
   return Boolean(execApprovals?.enabled && (execApprovals.approvers?.length ?? 0) > 0);
 }
+
 
 function formatApprovalCommand(command: string): { inline: boolean; text: string } {
   if (!command.includes("\n") && !command.includes("`")) {
@@ -453,18 +481,18 @@ export function createExecApprovalForwarder(
   const handleRequested = async (request: ExecApprovalRequest): Promise<boolean> => {
     const cfg = getConfig();
     const config = cfg.approvals?.exec;
-    const filteredTargets = [
-      ...(shouldForward({ config, request })
-        ? resolveForwardTargets({
-            cfg,
-            config,
-            request,
-            resolveSessionTarget,
-          })
-        : []),
-    ].filter(
+    if (!shouldForward({ config, request })) {
+      return false;
+    }
+    const filteredTargets = resolveForwardTargets({
+      cfg,
+      config,
+      request,
+      resolveSessionTarget,
+    }).filter(
       (target) =>
         !shouldSkipDiscordForwarding(target, cfg) &&
+        !shouldSkipFeishuForwarding(target, cfg) &&
         !shouldSkipTelegramForwarding({ target, cfg, request }),
     );
 
@@ -528,20 +556,19 @@ export function createExecApprovalForwarder(
         expiresAtMs: resolved.ts,
       };
       const config = cfg.approvals?.exec;
-      targets = [
-        ...(shouldForward({ config, request })
-          ? resolveForwardTargets({
-              cfg,
-              config,
-              request,
-              resolveSessionTarget,
-            })
-          : []),
-      ].filter(
-        (target) =>
-          !shouldSkipDiscordForwarding(target, cfg) &&
-          !shouldSkipTelegramForwarding({ target, cfg, request }),
-      );
+      if (shouldForward({ config, request })) {
+        targets = resolveForwardTargets({
+          cfg,
+          config,
+          request,
+          resolveSessionTarget,
+        }).filter(
+          (target) =>
+            !shouldSkipDiscordForwarding(target, cfg) &&
+            !shouldSkipFeishuForwarding(target, cfg) &&
+            !shouldSkipTelegramForwarding({ target, cfg, request }),
+        );
+      }
     }
     if (!targets || targets.length === 0) {
       return;

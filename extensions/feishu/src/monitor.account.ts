@@ -18,6 +18,7 @@ import {
   tryRecordMessagePersistent,
   warmupDedupFromDisk,
 } from "./dedup.js";
+import { FeishuExecApprovalHandler } from "./exec-approvals.js";
 import { isMentionForwardRequest } from "./mention.js";
 import { fetchBotIdentityForMonitor } from "./monitor.startup.js";
 import { botNames, botOpenIds } from "./monitor.state.js";
@@ -132,6 +133,7 @@ type RegisterEventHandlersContext = {
   runtime?: RuntimeEnv;
   chatHistories: Map<string, HistoryEntry[]>;
   fireAndForget?: boolean;
+  execApprovalHandler?: FeishuExecApprovalHandler;
 };
 
 /**
@@ -470,6 +472,9 @@ function registerEventHandlers(
           botOpenId: botOpenIds.get(accountId),
           runtime,
           accountId,
+          context: {
+            execApprovalHandler: context.execApprovalHandler,
+          },
         });
         if (fireAndForget) {
           promise.catch((err) => {
@@ -530,13 +535,30 @@ export async function monitorSingleAccount(params: MonitorSingleAccountParams): 
   const eventDispatcher = createEventDispatcher(account);
   const chatHistories = new Map<string, HistoryEntry[]>();
 
+  const execApprovalConfig = account.config.execApprovals;
+  const execApprovalHandler =
+    execApprovalConfig?.enabled && execApprovalConfig.approvers?.length
+      ? new FeishuExecApprovalHandler({
+          account,
+          config: execApprovalConfig,
+          cfg,
+          runtime,
+        })
+      : undefined;
+
   registerEventHandlers(eventDispatcher, {
     cfg,
     accountId,
     runtime,
     chatHistories,
     fireAndForget: true,
+    execApprovalHandler,
   });
+
+  if (execApprovalHandler) {
+    await execApprovalHandler.start();
+    log(`feishu[${accountId}]: exec approval handler started`);
+  }
 
   if (connectionMode === "webhook") {
     return monitorWebhook({ account, accountId, runtime, abortSignal, eventDispatcher });

@@ -121,6 +121,18 @@ const GroupSessionScopeSchema = z
 const TopicSessionModeSchema = z.enum(["disabled", "enabled"]).optional();
 const ReactionNotificationModeSchema = z.enum(["off", "own", "all"]).optional();
 
+const FeishuExecApprovalConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    approvers: z.array(z.string()).optional(),
+    agentFilter: z.array(z.string()).optional(),
+    sessionFilter: z.array(z.string()).optional(),
+    cleanupAfterResolve: z.boolean().optional(),
+    target: z.enum(["dm", "channel", "both"]).optional(),
+  })
+  .strict()
+  .optional();
+
 /**
  * Reply-in-thread mode for group chats.
  * - "disabled" (default): Bot replies are normal inline replies
@@ -174,6 +186,7 @@ const FeishuSharedConfigShape = {
   reactionNotifications: ReactionNotificationModeSchema,
   typingIndicator: z.boolean().optional(),
   resolveSenderNames: z.boolean().optional(),
+  execApprovals: FeishuExecApprovalConfigSchema,
 };
 
 /**

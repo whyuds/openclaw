@@ -17,6 +17,7 @@ import {
   listFeishuAccountIds,
   resolveDefaultFeishuAccountId,
 } from "./accounts.js";
+import { createFeishuActions } from "./actions.js";
 import {
   listFeishuDirectoryPeers,
   listFeishuDirectoryGroups,
@@ -331,6 +332,7 @@ export const feishuPlugin: ChannelPlugin<ResolvedFeishuAccount> = {
       }),
   },
   outbound: feishuOutbound,
+  actions: createFeishuActions("feishu"),
   status: {
     defaultRuntime: createDefaultChannelRuntimeState(DEFAULT_ACCOUNT_ID, { port: null }),
     buildChannelSummary: ({ snapshot }) =>

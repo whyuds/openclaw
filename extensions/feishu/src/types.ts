@@ -87,3 +87,12 @@ export type DynamicAgentCreationConfig = {
   agentDirTemplate?: string;
   maxAgents?: number;
 };
+
+export type FeishuExecApprovalConfig = {
+  enabled?: boolean;
+  approvers?: string[];
+  agentFilter?: string[];
+  sessionFilter?: string[];
+  cleanupAfterResolve?: boolean;
+  target?: "dm" | "channel" | "both";
+};

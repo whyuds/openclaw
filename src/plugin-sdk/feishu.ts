@@ -32,6 +32,10 @@ export type {
   ChannelMeta,
   ChannelOutboundAdapter,
 } from "../channels/plugins/types.js";
+export type {
+  ChannelMessageActionAdapter,
+  ChannelMessageActionContext,
+} from "../channels/plugins/types.core.js";
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export { createReplyPrefixContext } from "../channels/reply-prefix.js";
 export { createTypingCallbacks } from "../channels/typing.js";
@@ -80,3 +84,17 @@ export {
   WEBHOOK_RATE_LIMIT_DEFAULTS,
 } from "./webhook-memory-guards.js";
 export { applyBasicWebhookRequestGuards } from "./webhook-request-guards.js";
+export { buildGatewayConnectionDetails } from "../gateway/call.js";
+export { GatewayClient } from "../gateway/client.js";
+export { resolveGatewayConnectionAuth } from "../gateway/connection-auth.js";
+export type { EventFrame } from "../gateway/protocol/index.js";
+export type {
+  ExecApprovalDecision,
+  ExecApprovalRequest,
+  ExecApprovalResolved,
+} from "../infra/exec-approvals.js";
+export { logDebug, logError } from "../logger.js";
+export { normalizeAccountId, resolveAgentIdFromSessionKey } from "../routing/session-key.js";
+export { compileSafeRegex, testRegexWithBoundedInput } from "../security/safe-regex.js";
+export { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
+export { loadSessionStore, resolveStorePath } from "../config/sessions.js";
